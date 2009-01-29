@@ -1,0 +1,122 @@
+<html>
+<head>
+<title>aniyo search</title>
+<script type="text/javascript" src="http://s.hatena.ne.jp/js/HatenaStar.js"></script>
+<script type="text/javascript">
+if ( typeof(AniyoSearch) == 'undefined' ) { AniyoSearch = {}; }
+AniyoSearch.IncrementSearcher = new Ten.Class({
+    initialize: function(opt) {
+        this.jsonURL = opt.jsonURL;
+
+        this.allSongs     = [];
+        this.currentSongs = [];
+
+        this.changing     = false;
+        this.showAllTimer = undefined;
+
+        this.elems = {
+            keyword:   new Ten.Selector.getElementsBySelector('#keyword')[0],
+            songsList: new Ten.Selector.getElementsBySelector('#songs_list')[0]
+        };
+
+        this.loadSongs();
+        this.startUpdation();
+        this.startListeningKeys();
+    }
+}, {
+    loadSongs: function() {
+        new Ten.JSONP(this.jsonURL, this, 'onCompleteLoadingSongs');
+    },
+    onCompleteLoadingSongs: function(data) {
+        this.allSongs = this.currentSongs = data.songs;
+        this.updateSongsList();
+    },
+    startUpdation: function() {
+        // 定期的に表示を更新する
+        var self = this;
+        setInterval(function (){
+            if (!self.changing) { return; }
+
+            self.updateSongsList({limit: 15}); // とりあえず10件だけ表示する
+
+            // しばらく(1秒)入力がなければ
+            self.showAllTimer = setTimeout( function() {
+                self.updateSongsList(); //全件表示
+            }, 600);
+
+            self.changing = false;
+        }, 300);
+    },
+    updateSongsList: function(opt) {
+        var limit;
+        if ( opt == undefined || opt.limit == undefined || opt.limit > this.currentSongs.length) {
+            limit = this.currentSongs.length;
+        }
+        else {
+            limit = opt.limit;
+        }
+
+        // 表示を更新する
+        Ten.DOM.removeAllChildren(this.elems.songsList);
+        if (this.currentSongs.length == 0) {
+            this.currentSongs = this.allSongs;
+        }
+        for ( var i = 0; i < limit; i++) {
+            var song = this.currentSongs[i];
+            this.elems.songsList.appendChild(new Ten.Element('li', {
+                innerHTML: song
+            }));
+        }
+    },
+    startListeningKeys: function() {
+        new Ten.Observer(this.elems.keyword, 'onkeyup', this, 'onInputFormKeyUp' );
+    },
+    onInputFormKeyUp: function() {
+        if (this.showAllTimer != undefined) { // 全件表示をキャンセル
+            clearTimeout(this.showAllTimer);
+        }
+        if (this.changing) { return; } // 表示の更新中なら何もしない
+
+        // マッチするエントリをとりだす
+        var newSongs = [];
+        for ( var i = 0; i < this.allSongs.length; i++) {
+            var song = this.allSongs[i];
+            if (song.match(this.elems.keyword.value, 'i')) {
+                newSongs.push(song);
+            }
+        }
+        this.currentSongs = newSongs;
+
+        this.changing = true;
+    }
+});
+
+Ten.DOM.addEventListener('DOMContentLoaded', function () {
+    new AniyoSearch.IncrementSearcher({
+        jsonURL: '/aniyosearch/songs.json'
+    });
+});
+</script>
+<style type="text/css">
+h1 {
+    font-size: 1.5em;
+    color: #666;
+}
+#search {
+    background-color: #aaf;
+    padding: 0.5em;
+}
+#songs_list li {
+    list-style: none;
+}
+</style>
+</head>
+<body>
+<h1>アニソン歌う子検索 (for Hyperjoy)</h1>
+<form id="search">
+<label for"keyword"></label><input type="text" name="keyword" id="keyword" />
+</form>
+<ul id="songs_list">
+</ul>
+</body>
+</html>
